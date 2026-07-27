@@ -1,0 +1,42 @@
+# Reliability & Maintenance Optimization Dashboard — CDU RU VI Pertamina Balongan
+#
+# Menjalankan seluruh aplikasi dengan satu perintah:
+#     docker compose up --build
+# lalu buka http://localhost:8080
+#
+# Frontend (nginx) mem-proxy /api ke backend, sehingga hanya satu port yang
+# perlu dibuka dan tidak ada masalah CORS.
+
+services:
+  backend:
+    build: ./backend
+    container_name: cdu-backend
+    restart: unless-stopped
+    expose:
+      - "8000"
+    ports:
+      # Dibuka agar dokumentasi OpenAPI dapat diakses langsung saat pengembangan.
+      - "8000:8000"
+    environment:
+      # Daftar origin yang diizinkan bila frontend diakses tanpa proxy nginx.
+      CORS_ORIGINS: "http://localhost:8080,http://127.0.0.1:8080"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health',timeout=4).status==200 else 1)"
+      interval: 20s
+      timeout: 5s
+      start_period: 25s
+      retries: 5
+
+  frontend:
+    build: ./frontend
+    container_name: cdu-frontend
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    depends_on:
+      backend:
+        condition: service_healthy
